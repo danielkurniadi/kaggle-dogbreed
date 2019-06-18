@@ -1,0 +1,10 @@
+numpy
+scipy
+matplotlib
+joblib
+sklearn
+pandas
+seaborn
+jupyter
+torch
+torchvision
