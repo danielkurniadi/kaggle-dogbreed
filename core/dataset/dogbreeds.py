@@ -1,7 +1,10 @@
+import os
 from PIL import Image
 
 from torch.utils.data import Dataset
 from torchvision import transforms
+
+__all__ = ['DogImageset', ]
 
 class DogImageset(Dataset):
     SEP = " " # space char
@@ -16,29 +19,31 @@ class DogImageset(Dataset):
             - input_mean (arr): input mean in array-like/tuples, must has same length as the input channels(e.g RGB: 3 channels)
             - input_std (arr): input standard dev in array-like/tuples, must has same length as the input channels (e.g RGB: 3 channels) 
         """
-        if not os.path.isfile(os.path.abspath(filepath)):
+        if not os.path.exists(os.path.abspath(filepath)):
             raise FileNotFoundError("path-label-pairs file (.txt) not found, %s" % filepath)
 
         # setup attributes
         with open(filepath, 'r') as fp:
-            self.path_label_pairs = fh.readlines()
+            self.path_label_pairs = fp.readlines()
         self.preprocessing_filters = preprocessings
+        self.input_size = input_size
         self.input_mean = input_mean
         self.input_std = input_std
         
         # prepare image preprocessings and transforms
-        self.transforms = transforms.Compose(self.preprocessing_filters.extend([
-                                              transforms.Resize(self.input_size),
-                                              transforms.CenterCrop(self.input_size),
-                                              transforms.ToTensor(),
-                                              transforms.Normalize(self.input_mean, self.input_std)
-                                             ]))
+        self.transforms = transforms.Compose([
+                                        transforms.Resize(self.input_size),
+                                        transforms.CenterCrop(self.input_size),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize(self.input_mean, self.input_std)
+                                        ])
 
     def __getitem__(self, i):
-        path, label = self.path_label_pairs[i]
-            .strip()
+        path, label = self.path_label_pairs[i] \
+            .strip() \
             .split(DogImageset.SEP)
-        img = self.transforms(Image.open(path))
+        img = Image.open(path)
+        img = self.transforms(img)
         label = int(label)
         
         return (img, label)
