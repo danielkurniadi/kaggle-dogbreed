@@ -1,8 +1,11 @@
 ### Dataset ###
+raw/
+splits/*
 train/
 test/
 train.zip
 test.zip
+
 
 
 ### Python ###
