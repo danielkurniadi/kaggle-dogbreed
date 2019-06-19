@@ -49,7 +49,7 @@ def main(ftrain_split, ftest_split):
     val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
 
     # Loss and backprop settings
-    # model.cuda()
+    model.cuda()
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -159,7 +159,7 @@ def validate(model, dataloader, criterion, optimizer):
         loss = criterion(outputs, labels)
 
         _, preds = torch.max(outputs.data, 1)
-        running_loss += loss.data[0]
+        running_loss += loss.data
         running_correct += torch.sum(preds == labels.data)
 
     # print 1 epoch result
@@ -169,5 +169,5 @@ def validate(model, dataloader, criterion, optimizer):
 
 if __name__ == '__main__':
     ftrain_split = os.path.join(SPLITS_DIR, 'train_split_0.txt')
-    ftest_split = os.path.join(SPLITS_DIR, 'test_split_0.txt')
+    ftest_split = os.path.join(SPLITS_DIR, 'val_split_0.txt')
     main(ftrain_split, ftest_split)

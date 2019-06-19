@@ -30,7 +30,7 @@ DOGBREED_DIR = os.path.join(DATA_DIR, 'dogbreed/')
 TRAIN_DIR = os.path.join(DOGBREED_DIR, 'raw/train/')
 SPLITS_DIR = os.path.join(DOGBREED_DIR, 'splits/')
 ORI_LABELS_PATH = os.path.join(DOGBREED_DIR, 'labels.csv')
-LABELS_PATH = os.path.join(DOGBREED_DIR, 'labels_en.csv')
+LABELS_PATH = os.path.join(SPLITS_DIR, 'labels.csv')
 
 def run_test(filepath):
     """Run model (resnet51) on dogbreed dataset
@@ -63,7 +63,7 @@ def run_test(filepath):
     val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
 
     # Loss and backprop settings
-    # model.cuda()
+    model.cuda()
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(
         model.parameters(),
