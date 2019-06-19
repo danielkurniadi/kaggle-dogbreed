@@ -41,7 +41,6 @@ def num_encoding_labels_file(labels_file, label_name, outpath, sep=","):
     outpath, ext = os.path.splitext(outpath)
     outdir = os.path.dirname(outpath)
     picklefile = os.path.join(outdir, "metadata.pkl")
-    print(picklefile)
     with open(picklefile, 'wb') as fp:
         pickle.dump(mapping, fp, protocol=pickle.HIGHEST_PROTOCOL)
     
