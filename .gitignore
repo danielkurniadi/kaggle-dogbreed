@@ -1,6 +1,6 @@
 ### Dataset ###
 raw/
-splits/*
+splits/
 train/
 test/
 train.zip
