@@ -2,17 +2,24 @@ import os
 import sys
 import glob
 
+# data prep tools
+import pandas as pd
+import pickle
+import sklearn
+
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import StratifiedKFold
 
-__all__ = [split_from_datadir, split_kaggle_traindir]
+__all__ = ['id_to_path', 'num_encoding_labels_file', 
+    'split_from_datadir', 'split_path_label_pairs']
 
 PATHS_COLNAME = 'paths'
 LABELS_COLNAME = 'labels'
 
-def id_to_path(datadir, labels_file, id_colname, outpath, sep=','):
+def id_to_path(datadir, labels_file, id_colname, outpath, sep=',', ext='.jpg'):
     # load labels from labels file
     labels_df = pd.read_csv(labels_file, sep=sep)
-    labels_df[id_colname] =  labels_df[id_colname].apply(lambda idname: os.path.join(datadir, idname))
+    labels_df[id_colname] =  labels_df[id_colname].apply(lambda idname: os.path.join(datadir, idname + ext))
     labels_df.rename(columns={id_colname: PATHS_COLNAME}, inplace=True)
     labels_df.to_csv(outpath, index=False)
 
@@ -32,7 +39,8 @@ def num_encoding_labels_file(labels_file, label_name, outpath, sep=","):
     
     # write to pickle
     outpath, ext = os.path.splitext(outpath)
-    picklefile = "%s_map.pickle" % outpath
+    outdir = os.path.dirname(outpath)
+    picklefile = os.path.join(outdir, "metadata.pkl")
     print(picklefile)
     with open(picklefile, 'wb') as fp:
         pickle.dump(mapping, fp, protocol=pickle.HIGHEST_PROTOCOL)
@@ -58,7 +66,7 @@ def _skf_path_labels(all_paths, all_labels, outdir, out_prefix="", n_splits=5):
         y_test = all_labels[test_idx] # y_test is list of train data path
 
         # path for text of test path list
-        test_prefix = "{}test_split_{}.txt".format(out_prefix, i)
+        test_prefix = "{}val_split_{}.txt".format(out_prefix, i)
         test_filepath = os.path.join(outdir, test_prefix) 
 
         with open(test_filepath, 'w') as fp:
@@ -92,7 +100,7 @@ def split_from_datadir(datadir, outdir, n_splits=5, out_prefix=""):
     # stratify
     _skf_path_labels(all_paths, all_labels, outdir)
 
-def split_path_label_pair(labels_file, outdir, sep=",", has_header=True, n_splits=5, out_prefix=""):
+def split_path_label_pairs(labels_file, outdir, sep=",", has_header=True, n_splits=5, out_prefix=""):
     """Split path-label pairs to k folds of train and test set.
     This will take labels file and generate k text files each contains lists of data paths.
     Labels file should contains file name (data) and label (2 columns) in each line, seperated by separator.
@@ -106,8 +114,8 @@ def split_path_label_pair(labels_file, outdir, sep=",", has_header=True, n_split
         - out_prefix (str): if provided, will prefix the text filename with it
     """
     labels_df = pd.read_csv(labels_file, sep=sep)
-    all_paths = labels_df[path_colname].to_numpy()
-    all_labels = labels_df[label_name].to_numpy()
+    all_paths = labels_df[PATHS_COLNAME].to_numpy()
+    all_labels = labels_df[LABELS_COLNAME].to_numpy()
     
     _skf_path_labels(all_paths, all_labels, outdir)
 
