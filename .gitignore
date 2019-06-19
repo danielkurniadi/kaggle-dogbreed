@@ -7,8 +7,10 @@ train.zip
 test.zip
 
 ### Logs ###
+logs/
 
-
+### Checkpoints ###
+Checkpoints/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
