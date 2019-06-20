@@ -10,7 +10,7 @@ test.zip
 logs/
 
 ### Checkpoints ###
-Checkpoints/
+checkpoints/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
