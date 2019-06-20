@@ -10,15 +10,18 @@ import torch.optim
 from torch.utils.data import Dataset, DataLoader
 from torchsummary import summary
 
-from core import LOGS_DIR, DATA_DIR
+from core import LOGS_DIR, DATA_DIR, CHECKPOINT_DIR
 from core.dataset import DogImageset
 from core.models import Resnet50MO
+from core.dataset.helpers import *
 
 DOGBREED_DIR = os.path.join(DATA_DIR, 'dogbreed/')
 TRAIN_DIR = os.path.join(DOGBREED_DIR, 'raw/train/')
 SPLITS_DIR = os.path.join(DOGBREED_DIR, 'splits/')
+LABELS_PATH = os.path.join(DOGBREED_DIR, 'labels.csv')
+SPLIT_LABELS_PATH = os.path.join(SPLITS_DIR, 'labels.csv')
 
-def main(ftrain_split, ftest_split):
+def main(ftrain_split, ftest_split, split):
     """Run model (resnet51) on dogbreed dataset
     """
     num_class = 120 # dogbreeds class
@@ -36,8 +39,8 @@ def main(ftrain_split, ftest_split):
     batch_size = 32 # mini-batch-size
     learning_rate = 0.01
     momentum = 0.5
-    decay_factor = 10
-    eval_freq = 5 # in epochs
+    decay_factor = 0.35
+    eval_freq = 3 # in epochs
 
     # data generator settings: dataset and dataloader
     train_dataset = DogImageset(ftrain_split, input_size,
@@ -75,19 +78,29 @@ def main(ftrain_split, ftest_split):
 
     print("BEGIN: %s" % time.time())
 
+    best_acc = 0.0
+
     # experiment session
     for e in range(epochs):
-        print("Epoch [{}/{}]".format(e+1, epochs))
-        
         # training
         train(model, train_loader, criterion, optimizer, e+1)
 
-        if (e+1)%5 == 0:
-            learning_rate /= decay_factor
+        if (e+1)%eval_freq == 0:
+            learning_rate *= decay_factor
             update_learning_rate(optimizer, learning_rate)
 
         # validation
-        validate(model, val_loader, criterion, optimizer)
+        acc = validate(model, val_loader, criterion, optimizer, e+1)
+
+        if (best_acc*1.05) < acc:
+            best_acc = acc
+            state = {
+                'model_name': model.__class__.__name__,
+                'split': split,
+                'epoch': e+1,
+                'state_dict': model.state_dict()
+            }
+            save_checkpoints(state)            
 
         print("----------------------------------------")
 
@@ -99,15 +112,22 @@ def write_loss_to_logfile(file_suffix, epoch, iterr, loss):
     with open(path, 'a') as fp:
         fp.write("{}, {}, {}\n".format(epoch, iterr, loss))
 
+def save_checkpoints(state):
+    filename = "checkpoints_{}_split{}_{}.pth".format(
+        state['model_name'], state['split'], state['epoch']
+    )
+    savepath = os.path.join(CHECKPOINT_DIR, filename)
+    torch.save(state, savepath)
+
 def update_learning_rate(optimizer, learning_rate):
-    for params_group in optimizer.params_groups:
-        params_group['lr'] = learning_rate
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = learning_rate
 
 def train(model, dataloader, criterion, optimizer, e):
     model.train()
     
     running_loss = 0.0
-    running_correct = 0
+    running_acc = 0
     start = time.time()
     for i, (X, labels) in enumerate(dataloader):
 
@@ -118,6 +138,7 @@ def train(model, dataloader, criterion, optimizer, e):
         # feed forward & calculate loss
         outputs = model(X)
         loss = criterion(outputs, labels)
+        running_loss += loss.data
 
         # backpropagation and weights update
         optimizer.zero_grad()
@@ -126,27 +147,27 @@ def train(model, dataloader, criterion, optimizer, e):
 
         # eval acc
         _, preds = torch.max(outputs.data, 1)
-        running_loss += loss.data
-        running_correct += torch.sum(preds == labels.data)
+        acc = torch.mean((preds == labels.data).float())
+        running_acc += acc 
 
         # print result
         elapsed = time.time() - start
-        print("Iterations [{}/{}] | Train Loss: {: .4f}, | Elapsed time: {: .4f}".format(
-            i+1, len(dataloader), loss.data, elapsed
+        print("Epoch: [{:03d}] : Iterations [{:03d}/{}] | Train loss: {: .4f}, Train acc: {: .4f} | Elapsed time: {: .4f}".format(
+            e, i+1, len(dataloader), loss.data, acc, elapsed
         ))
 
         write_loss_to_logfile(model.__class__.__name__, e, i+1, loss.data)
 
     # print 1 epoch result
-    print("Avg Train Loss: {: .4f} | Avg Train Acc: {: .4f}".format(
-        running_loss/len(dataloader), running_correct/len(dataloader)
+    print("Epoch: [{:03d}] : Avg Train Loss: {: .4f} | Avg Train Acc: {: .4f}".format(
+        e, running_loss/len(dataloader), running_acc/len(dataloader)
     ))
 
-def validate(model, dataloader, criterion, optimizer):
+def validate(model, dataloader, criterion, optimizer, e):
     model.eval()
     
     running_loss = 0.0
-    running_correct = 0
+    running_acc = 0
 
     for i, (X, labels) in enumerate(dataloader):
 
@@ -160,14 +181,29 @@ def validate(model, dataloader, criterion, optimizer):
 
         _, preds = torch.max(outputs.data, 1)
         running_loss += loss.data
-        running_correct += torch.sum(preds == labels.data)
+        acc = torch.mean((preds == labels.data).float())
+        running_acc += acc
 
     # print 1 epoch result
-    print("Avg Val Loss: {: .4f} | Avg Val Acc: {: .4f}".format(
-        running_loss/len(dataloader), running_correct/len(dataloader)
+    print("Epoch: [{:03d}] : Avg Val Loss: {: .4f} | Avg Val Acc: {: .4f}".format(
+        e, running_loss/len(dataloader), running_acc/len(dataloader)
     ))
 
+    return running_acc/len(dataloader)
+
+def prepare_label_pairs():
+    id_to_path(TRAIN_DIR, LABELS_PATH, 'id', SPLIT_LABELS_PATH)
+    enclbl_df, mapping = num_encoding_labels_file(SPLIT_LABELS_PATH, "breed", SPLIT_LABELS_PATH)
+    assert mapping
+    split_path_label_pairs(SPLIT_LABELS_PATH, SPLITS_DIR)
+
 if __name__ == '__main__':
-    ftrain_split = os.path.join(SPLITS_DIR, 'train_split_0.txt')
-    ftest_split = os.path.join(SPLITS_DIR, 'val_split_0.txt')
-    main(ftrain_split, ftest_split)
+
+    prepare_label_pairs()
+
+    # prepare splits
+    for k in range(0, 5 ):
+        ftrain_split = os.path.join(SPLITS_DIR, 'train_split_{}.txt'.format(k))
+        ftest_split = os.path.join(SPLITS_DIR, 'val_split_{}.txt'.format(k))
+    
+        main(ftrain_split, ftest_split, k)
